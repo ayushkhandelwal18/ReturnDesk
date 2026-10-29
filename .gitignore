@@ -34,6 +34,7 @@ yarn-error.log*
 .env*
 .env
 .env.*
+!.env.example
 # vercel
 .vercel
 
@@ -42,3 +43,10 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Local coding tools (not needed to run or build the application)
+/.agents/
+/.claude/
+/.windsurf/
+/AGENTS.md
+/skills-lock.json
