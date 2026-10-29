@@ -11,3 +11,59 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum ReturnReason {
+  DAMAGED
+  WRONG_ITEM
+  SIZE_ISSUE
+  NOT_AS_DESCRIBED
+  CHANGED_MIND
+}
+
+enum RequestStatus {
+  OPEN
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum ResolutionType {
+  REFUND
+  REPLACEMENT
+  STORE_CREDIT
+}
+
+model ReturnRequest {
+  id           Int             @id @default(autoincrement())
+  reference    String          @unique @default(dbgenerated("('RD-'::text || lpad((nextval('request_reference_seq'::regclass))::text, 12, '0'::text))")) @db.VarChar(32)
+  customerName String          @db.VarChar(200)
+  email        String?         @db.VarChar(254)
+  phone        String?         @db.VarChar(32)
+  orderId      String          @db.VarChar(100)
+  itemId       String          @db.VarChar(100)
+  itemName     String          @db.VarChar(200)
+  quantity     Int
+  reason       ReturnReason
+  status       RequestStatus   @default(OPEN)
+  resolution   ResolutionType?
+  refundAmount Decimal?        @db.Decimal(12, 2)
+  createdAt    DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+  deletedAt    DateTime?       @db.Timestamptz(3)
+  notes        Note[]
+
+  // Live order/item uniqueness is enforced by a partial index in migration SQL.
+  @@index([status, createdAt])
+  @@index([reason, createdAt])
+}
+
+model Note {
+  id        Int           @id @default(autoincrement())
+  requestId Int
+  body      String        @db.Text
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  request   ReturnRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt, id])
+}
