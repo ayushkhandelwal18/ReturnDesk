@@ -100,7 +100,11 @@ The seed is transactional and uses reserved order IDs `RD-DEMO-001` through `RD-
 
 ## Production build
 
-Run `npm run build`. The layout now uses system sans/monospace stacks, avoiding build-time Google Fonts downloads. Tailwind and its existing Turbopack loader are retained; no styling pipeline or dependency has been removed. The existing stylesheet and utilities compile successfully with Tailwind's compiler directly. In this Windows execution environment, Turbopack's generated CSS-loader worker exits with code 0 before its local connection is established. This reproduces with elevated execution too; the production build remains blocked by that worker failure. API routes run successfully in development. No successful production build is claimed.
+Run `npm run build`, then `npm start`. Production builds use the supported `next build --webpack` command to avoid the Turbopack CSS worker exiting before its local connection is established in this Windows environment. The Webpack build succeeds, including page generation and build traces.
+
+`next.config.mjs` applies the already-installed Tailwind loader as a grouped Webpack preprocessor, retaining Next.js's built-in CSS extraction and optimization. Without this configuration, Webpack can build successfully but leave Tailwind directives uncompiled. The generated production CSS was checked for compiled utilities and shared styles, with no remaining `@apply`, `@theme` or `@tailwind` directives. Development still uses the existing Turbopack configuration. No dependencies, application code or business rules were changed for this fix.
+
+Verification: `npm run build` succeeded; all 15 API tests passed against `npm start`; the original database checks passed; and `npm run lint` passed with the existing 10 warnings in generated Prisma files. Production dashboard, create/detail pages, listing API and served styles also passed HTTP smoke checks.
 
 ## Frontend (Phase 4)
 
@@ -110,10 +114,10 @@ Run `npm run build`. The layout now uses system sans/monospace stacks, avoiding 
 - Shared buttons, fields, notices and status badges provide consistent styling, visible keyboard focus and accessible labels. Layouts adapt to 375 px width. Dates are displayed in IST; amounts use the store currency because the brief does not specify one.
 - Listing now uses an interactive repeatable-read transaction with a 10-second connection wait, matching other API mutations. This fixes the connection-wait failures observed when opening the dashboard during concurrent Neon activity; query behavior and business rules are unchanged.
 
-Phase 4 verification: all 15 API regression tests passed. Frontend source lint passed; full `npm run lint` passed with the same 10 warnings in generated Prisma files. Tailwind compiled the new shared styles successfully. The frontend runs in development; `npm run build` still encounters the CSS-worker failure described above.
+Phase 4 verification: all 15 API regression tests passed. Frontend source lint passed; full `npm run lint` passed with the same 10 warnings in generated Prisma files. The subsequent production-build fix is described above.
 
 Browser verification covered the dashboard at 375 px, required-field validation, create success/reference generation, editing quantity, Open → In Review → Approved (Refund) → Completed, notes on the completed request, and confirmation/success for removal of a second Open request. The two disposable browser-test records and their notes were cleaned up afterward. Backend responses supplied the displayed data throughout.
 
 ## Remaining work
 
-Deployment remains. Resolve/verify the production build on the deployment environment before shipping. Record actual time spent and deployment details before submission.
+Deployment remains. Record actual time spent and deployment details before submission.
