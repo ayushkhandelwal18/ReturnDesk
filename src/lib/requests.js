@@ -31,13 +31,13 @@ export async function listRequests({ search, status, reason, sortBy, sortOrder, 
     })) } : {}),
   };
   // One snapshot keeps the count and page consistent during concurrent writes.
-  const [items, total] = await prisma.$transaction([
-    prisma.returnRequest.findMany({
+  const [items, total] = await prisma.$transaction(async (tx) => [
+    await tx.returnRequest.findMany({
       where, orderBy: [{ [sortBy]: sortOrder }, { id: sortOrder }],
       skip: (page - 1) * limit, take: limit,
     }),
-    prisma.returnRequest.count({ where }),
-  ], { isolationLevel: 'RepeatableRead' });
+    await tx.returnRequest.count({ where }),
+  ], { isolationLevel: 'RepeatableRead', maxWait: 10000, timeout: 15000 });
   return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 

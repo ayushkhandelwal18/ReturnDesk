@@ -1,6 +1,6 @@
 # ReturnDesk
 
-Phases 1–3 implement the PostgreSQL schema, backend APIs, database-backed listing and demo seed data. The frontend remains the Next.js starter; UI and deployment are later phases.
+Phases 1–4 implement the PostgreSQL schema, backend APIs, database-backed listing, demo seed data and support-agent frontend. Deployment remains a later phase.
 
 ## Database setup
 
@@ -102,6 +102,18 @@ The seed is transactional and uses reserved order IDs `RD-DEMO-001` through `RD-
 
 Run `npm run build`. The layout now uses system sans/monospace stacks, avoiding build-time Google Fonts downloads. Tailwind and its existing Turbopack loader are retained; no styling pipeline or dependency has been removed. The existing stylesheet and utilities compile successfully with Tailwind's compiler directly. In this Windows execution environment, Turbopack's generated CSS-loader worker exits with code 0 before its local connection is established. This reproduces with elevated execution too; the production build remains blocked by that worker failure. API routes run successfully in development. No successful production build is claimed.
 
+## Frontend (Phase 4)
+
+- `/` displays a desktop table and mobile request cards. Search waits 350 ms after typing. Status/reason filters, sort options, page size and pagination use the listing API; no local filtering is performed. Superseded fetches are cancelled. Empty, loading and retryable error states are explicit.
+- `/requests/new` creates a request using the existing create schema, with required fields, at least one contact method, inline validation, submission loading, server errors and generated-reference success feedback.
+- `/requests/:id` shows all customer/item data, status, resolution, refund amount and chronological notes. The shared detail form is available only before a decision. Lifecycle actions follow the permitted transitions, with resolution/positive-amount validation for approval. Notes remain available in final states. Removal is offered only for Open/Rejected requests and requires an explicit confirmation in the UI.
+- Shared buttons, fields, notices and status badges provide consistent styling, visible keyboard focus and accessible labels. Layouts adapt to 375 px width. Dates are displayed in IST; amounts use the store currency because the brief does not specify one.
+- Listing now uses an interactive repeatable-read transaction with a 10-second connection wait, matching other API mutations. This fixes the connection-wait failures observed when opening the dashboard during concurrent Neon activity; query behavior and business rules are unchanged.
+
+Phase 4 verification: all 15 API regression tests passed. Frontend source lint passed; full `npm run lint` passed with the same 10 warnings in generated Prisma files. Tailwind compiled the new shared styles successfully. The frontend runs in development; `npm run build` still encounters the CSS-worker failure described above.
+
+Browser verification covered the dashboard at 375 px, required-field validation, create success/reference generation, editing quantity, Open → In Review → Approved (Refund) → Completed, notes on the completed request, and confirmation/success for removal of a second Open request. The two disposable browser-test records and their notes were cleaned up afterward. Backend responses supplied the displayed data throughout.
+
 ## Remaining work
 
-The frontend and deployment are not implemented. Resolve/verify the production build on the deployment environment before shipping. Record actual time spent and deployment details before submission.
+Deployment remains. Resolve/verify the production build on the deployment environment before shipping. Record actual time spent and deployment details before submission.
