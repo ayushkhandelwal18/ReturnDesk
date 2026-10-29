@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  devIndicators: false,
+
   webpack(config) {
     // The installed Tailwind loader supports Webpack's loader API too.
     // Group the preprocessor so Next keeps its built-in CSS handling intact.
@@ -15,6 +17,7 @@ const nextConfig = {
     });
     return config;
   },
+
   turbopack: {
     rules: {
       "*.css": {
