@@ -9,7 +9,7 @@ const reasons = ['DAMAGED', 'WRONG_ITEM', 'SIZE_ISSUE', 'NOT_AS_DESCRIBED', 'CHA
 const resolutions = ['REFUND', 'REPLACEMENT', 'STORE_CREDIT'];
 
 // Namespace is used by integration tests to isolate their own seed fixtures.
-export async function seedRequests(namespace = 'RD-DEMO') {
+export async function seedRequests(namespace = 'ORD') {
   const records = Array.from({ length: 35 }, (_, i) => {
     const status = statuses[Math.floor(i / 7)];
     const resolution = ['APPROVED', 'COMPLETED'].includes(status) ? resolutions[i % 3] : null;
@@ -18,7 +18,7 @@ export async function seedRequests(namespace = 'RD-DEMO') {
       customerName: customers[i % customers.length],
       email: `${customers[i % customers.length].toLowerCase().replaceAll(' ', '.')}@example.com`,
       phone: `+1-202-555-${String(100 + i).padStart(4, '0')}`,
-      orderId: `${namespace}-${String(i + 1).padStart(3, '0')}`,
+      orderId: `${namespace}-${String(i + 1).padStart(4, '0')}`,
       itemId: `SKU-${100 + i % items.length}`,
       itemName: items[i % items.length],
       quantity: i % 3 + 1,

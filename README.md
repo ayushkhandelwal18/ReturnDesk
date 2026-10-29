@@ -63,7 +63,7 @@ The schema contains two models:
 - PostgreSQL enums store the five reasons, five statuses and three resolutions. The API uses uppercase underscore values.
 - Quantities are positive integers. External IDs and phone numbers are strings. Required text is nonblank; at least one email or phone is required.
 - Refunds use exact `Decimal(12,2)` amounts. SQL checks enforce positive refunds, resolution/amount consistency and a resolution for Approved/Completed rows.
-- References such as `RD-000000000001` come from a PostgreSQL noncycling sequence and have a unique index. Inserts generate them automatically, including concurrent inserts. Gaps are expected after rollbacks; values are never reused. The sequence is capped at twelve digits to prevent padding truncation.
+- References such as `RD-0001` come from a PostgreSQL noncycling sequence and have a unique index. Inserts generate them automatically, including concurrent inserts. Gaps are expected after rollbacks; values are never reused. References use at least four digits, with zero-padding only when needed (for example, `RD-0160`, `RD-9999`, `RD-10000`). The existing sequence limit is unchanged.
 - A partial unique index on `(orderId, itemId)` applies when `deletedAt IS NULL` and status is Open, In Review or Approved. Soft-deleted requests do not occupy the live slot.
 - Status/creation-time and reason/creation-time indexes support filtering and ordering. Notes have a request/creation-time/ID index for stable chronological order.
 - Timestamps use `timestamptz`. Prisma maintains `updatedAt` on request updates. Raw SQL updates must set it explicitly.
@@ -126,7 +126,7 @@ Decimal strings are recommended. JSON numbers with at most two decimal places ar
 
 ### Listing parameters
 
-Example: `/api/requests?search=RD-DEMO&status=OPEN&reason=DAMAGED&sortBy=createdAt&sortOrder=desc&page=1&limit=20`.
+Example: `/api/requests?search=ORD-&status=OPEN&reason=DAMAGED&sortBy=createdAt&sortOrder=desc&page=1&limit=20`.
 
 | Parameter | Default | Values |
 | --- | --- | --- |
@@ -247,7 +247,7 @@ npm run db:seed
 
 The transactional script creates **35 requests**: seven in each status and seven for each return reason. It uses seven customers/items, all three resolution types, valid positive refund amounts, different orders and notes on some records.
 
-Demo order IDs are reserved as `RD-DEMO-001` through `RD-DEMO-035`. Re-running skips existing matching orders, including edited or soft-deleted demos, and inserts only missing orders. It does not reset the database, delete existing data or overwrite records. Run the seed sequentially and do not use that prefix for real orders. Seeding is an explicit command, not part of normal application startup.
+Demo order IDs are reserved as `ORD-0001` through `ORD-0035`. Re-running skips existing matching orders, including edited or soft-deleted demos, and inserts only missing orders. It does not reset the database, delete existing data or overwrite records. Run the seed sequentially and reserve these 35 order IDs for demo data. Seeding is an explicit command, not part of normal application startup.
 
 ## Testing
 

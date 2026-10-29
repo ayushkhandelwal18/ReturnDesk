@@ -31,7 +31,7 @@ enum ResolutionType {
 
 model ReturnRequest {
   id           Int             @id @default(autoincrement())
-  reference    String          @unique @default(dbgenerated("('RD-'::text || lpad((nextval('request_reference_seq'::regclass))::text, 12, '0'::text))")) @db.VarChar(32)
+  reference    String          @unique @default(dbgenerated("format_request_reference(nextval('request_reference_seq'::regclass))")) @db.VarChar(32)
   customerName String          @db.VarChar(200)
   email        String?         @db.VarChar(254)
   phone        String?         @db.VarChar(32)

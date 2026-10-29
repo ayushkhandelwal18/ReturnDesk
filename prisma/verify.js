@@ -14,7 +14,9 @@ async function main() {
       RETURNING *`;
     const order = `verify-${require('node:crypto').randomUUID()}`;
     const first = (await client.query(insert, [order])).rows[0];
-    assert.match(first.reference, /^RD-\d{12}$/);
+    assert.match(first.reference, /^RD-(?:\d{4}|[1-9]\d{4,})$/);
+    const formats = await client.query('SELECT format_request_reference(value) AS reference FROM (VALUES (1::bigint), (160), (9999), (10000)) AS examples(value)');
+    assert.deepEqual(formats.rows.map((row) => row.reference), ['RD-0001', 'RD-0160', 'RD-9999', 'RD-10000']);
     assert.equal(first.status, 'OPEN');
 
     async function rejects(sql, params, code) {

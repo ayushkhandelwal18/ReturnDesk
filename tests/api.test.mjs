@@ -56,7 +56,7 @@ async function fixture(status) {
 
 test('creation generates a reference; notes are ordered; all fields are returned', async () => {
   const row = await create();
-  assert.match(row.reference, /^RD-\d{12}$/);
+  assert.match(row.reference, /^RD-(?:\d{4}|[1-9]\d{4,})$/);
   assert.equal(row.status, 'OPEN');
   for (const body of ['First note', 'Second note']) {
     assert.equal((await api(`/${row.id}/notes`, 'POST', { body })).status, 201);
@@ -276,6 +276,12 @@ test('seed inserts 35 valid requests with complete coverage and preserves existi
   assert.equal(new Set(rows.map((row) => row.reason)).size, 5);
   assert.equal(new Set(rows.map((row) => row.resolution).filter(Boolean)).size, 3);
   assert.equal(new Set(rows.map((row) => row.reference)).size, 35);
+  assert.deepEqual(rows.map((row) => row.orderId).sort(), Array.from({ length: 35 }, (_, i) => `${namespace}-${String(i + 1).padStart(4, '0')}`));
+  for (const row of rows) {
+    const index = Number(row.orderId.slice(-4)) - 1;
+    assert.equal(row.itemId, `SKU-${100 + index % 7}`);
+    assert.match(row.reference, /^RD-(?:\d{4}|[1-9]\d{4,})$/);
+  }
   assert.ok(new Set(rows.map((row) => row.customerName)).size > 1);
   assert.ok(new Set(rows.map((row) => row.itemId)).size > 1);
   for (const row of rows) {
