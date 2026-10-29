@@ -19,6 +19,28 @@ export function createRequest(data) {
   return prisma.returnRequest.create({ data });
 }
 
+export async function listRequests({ search, status, reason, sortBy, sortOrder, page, limit }) {
+  // Escape LIKE metacharacters so search is a literal substring, including % and _.
+  const term = search.replace(/[\\%_]/g, '\\$&');
+  const where = {
+    deletedAt: null,
+    ...(status ? { status } : {}),
+    ...(reason ? { reason } : {}),
+    ...(search ? { OR: ['customerName', 'orderId', 'reference'].map((field) => ({
+      [field]: { contains: term, mode: 'insensitive' },
+    })) } : {}),
+  };
+  // One snapshot keeps the count and page consistent during concurrent writes.
+  const [items, total] = await prisma.$transaction([
+    prisma.returnRequest.findMany({
+      where, orderBy: [{ [sortBy]: sortOrder }, { id: sortOrder }],
+      skip: (page - 1) * limit, take: limit,
+    }),
+    prisma.returnRequest.count({ where }),
+  ], { isolationLevel: 'RepeatableRead' });
+  return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+}
+
 export async function getRequest(id) {
   const request = await prisma.returnRequest.findFirst({
     where: { id, deletedAt: null },

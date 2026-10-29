@@ -3,6 +3,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { seedRequests } from '../prisma/seed.mjs';
+import { prisma } from '../src/lib/prisma.js';
 
 // Run against a local Next.js server and the configured migrated database.
 const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3100';
@@ -17,7 +19,7 @@ after(async () => {
   try {
     await db.query('DELETE FROM "Note" WHERE "requestId" IN (SELECT id FROM "ReturnRequest" WHERE "orderId" LIKE $1)', [`${prefix}%`]);
     await db.query('DELETE FROM "ReturnRequest" WHERE "orderId" LIKE $1', [`${prefix}%`]);
-  } finally { await db.end(); }
+  } finally { await db.end(); await prisma.$disconnect(); }
 });
 
 async function api(path = '', method = 'GET', body) {
@@ -165,4 +167,126 @@ test('invalid input, malformed JSON and missing records use consistent errors', 
   const response = await fetch(`${base}/api/requests`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' });
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error.code, 'INVALID_JSON');
+});
+
+const listingSearch = `${prefix}listing`;
+let listingRows;
+async function listingFixtures() {
+  if (listingRows) return listingRows;
+  listingRows = [];
+  const states = ['OPEN', 'REJECTED', 'OPEN', 'IN_REVIEW', 'OPEN', 'COMPLETED', 'OPEN', 'OPEN'];
+  for (let i = 0; i < states.length; i++) {
+    const row = await fixture(states[i]);
+    const date = new Date(Date.UTC(2026, 0, 1 + Math.floor(i / 2)));
+    const updated = await db.query(`UPDATE "ReturnRequest" SET "customerName" = $1, "orderId" = $2,
+      reason = $3::"ReturnReason", quantity = $4, "createdAt" = $5, "updatedAt" = $5, "deletedAt" = $6
+      WHERE id = $7 RETURNING *`,
+    [`${listingSearch} Customer ${i}`, `${listingSearch}-order-${i}`, i % 2 ? 'WRONG_ITEM' : 'DAMAGED', 8 - i, date, i === 7 ? date : null, row.id]);
+    listingRows.push(updated.rows[0]);
+  }
+  return listingRows;
+}
+
+async function list(query = {}) {
+  const result = await api(`?${new URLSearchParams({ search: listingSearch, ...query })}`);
+  assert.equal(result.status, 200, JSON.stringify(result));
+  return result.data;
+}
+
+test('listing searches customer, order and generated reference case-insensitively', async () => {
+  const rows = await listingFixtures();
+  for (const search of [rows[0].customerName.toUpperCase(), rows[0].orderId.toUpperCase(), rows[0].reference.toLowerCase()]) {
+    const result = await list({ search });
+    assert.deepEqual(result.items.map((row) => row.id), [rows[0].id]);
+    assert.equal(result.total, 1);
+  }
+  const literal = await list({ search: '%' });
+  assert.equal(literal.total, 0);
+});
+
+test('listing filters by status, reason and both, excluding soft-deleted rows', async () => {
+  const rows = (await listingFixtures()).filter((row) => !row.deletedAt);
+  for (const filter of [{ status: 'OPEN' }, { reason: 'WRONG_ITEM' }, { status: 'OPEN', reason: 'DAMAGED' }]) {
+    const result = await list(filter);
+    const expected = rows.filter((row) => Object.entries(filter).every(([key, value]) => row[key] === value));
+    assert.equal(result.total, expected.length);
+    assert.deepEqual(result.items.map((row) => row.id).sort(), expected.map((row) => row.id).sort());
+  }
+  const hidden = await list({ search: listingRows[7].reference });
+  assert.equal(hidden.total, 0);
+});
+
+test('listing sorts every supported field both ways with stable ID tie-breaking', async () => {
+  const rows = (await listingFixtures()).filter((row) => !row.deletedAt);
+  for (const sortBy of ['createdAt', 'updatedAt', 'customerName', 'orderId', 'reference', 'quantity']) {
+    for (const sortOrder of ['asc', 'desc']) {
+      const expected = [...rows].sort((a, b) => {
+        const comparison = a[sortBy] < b[sortBy] ? -1 : a[sortBy] > b[sortBy] ? 1 : a.id - b.id;
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+      assert.deepEqual((await list({ sortBy, sortOrder })).items.map((row) => row.id), expected.map((row) => row.id));
+    }
+  }
+});
+
+test('listing pagination reports totals, stable pages and empty out-of-range results', async () => {
+  await listingFixtures();
+  const all = await list();
+  assert.equal(all.total, 7);
+  assert.equal(all.page, 1);
+  assert.equal(all.limit, 20);
+  const ids = [];
+  for (let page = 1; page <= 4; page++) {
+    const result = await list({ page, limit: 2 });
+    assert.equal(result.total, 7);
+    assert.equal(result.page, page);
+    assert.equal(result.totalPages, 4);
+    ids.push(...result.items.map((row) => row.id));
+  }
+  assert.deepEqual(ids, all.items.map((row) => row.id));
+  assert.deepEqual((await list({ page: 5, limit: 2 })).items, []);
+  const empty = await list({ search: `${prefix}nonexistent` });
+  assert.equal(empty.totalPages, 0);
+  assert.equal(empty.total, 0);
+});
+
+test('combined search + status + reason + sorting + pagination is applied in SQL', async () => {
+  const rows = await listingFixtures();
+  const result = await list({ status: 'OPEN', reason: 'DAMAGED', sortBy: 'quantity', sortOrder: 'asc', page: 2, limit: 2 });
+  assert.deepEqual(result.items.map((row) => row.id), [rows[2].id, rows[0].id]);
+  assert.equal(result.total, 4);
+  assert.equal(result.page, 2);
+  assert.equal(result.totalPages, 2);
+});
+
+test('invalid listing parameters return consistent validation errors', async () => {
+  for (const query of ['page=0', 'page=-1', 'page=1.5', 'page=1000001', 'limit=0', 'limit=101', 'limit=', 'status=BAD', 'reason=BAD', 'sortBy=deletedAt', 'sortOrder=random', 'extra=1', 'page=1&page=2', `search=${'x'.repeat(201)}`]) {
+    const result = await api(`?${query}`);
+    assert.equal(result.status, 422, query);
+    assert.equal(result.error.code, 'VALIDATION_ERROR');
+  }
+});
+
+test('seed inserts 35 valid requests with complete coverage and preserves existing data on rerun', async () => {
+  const namespace = `${prefix}seed`;
+  assert.deepEqual(await seedRequests(namespace), { inserted: 35, skipped: 0 });
+  const rows = (await db.query('SELECT * FROM "ReturnRequest" WHERE "orderId" LIKE $1', [`${namespace}%`])).rows;
+  assert.equal(rows.length, 35);
+  assert.equal(new Set(rows.map((row) => row.status)).size, 5);
+  assert.equal(new Set(rows.map((row) => row.reason)).size, 5);
+  assert.equal(new Set(rows.map((row) => row.resolution).filter(Boolean)).size, 3);
+  assert.equal(new Set(rows.map((row) => row.reference)).size, 35);
+  assert.ok(new Set(rows.map((row) => row.customerName)).size > 1);
+  assert.ok(new Set(rows.map((row) => row.itemId)).size > 1);
+  for (const row of rows) {
+    assert.ok(row.quantity > 0);
+    if (row.resolution === 'REFUND') assert.ok(Number(row.refundAmount) > 0);
+    else assert.equal(row.refundAmount, null);
+    if (['APPROVED', 'COMPLETED'].includes(row.status)) assert.ok(row.resolution);
+  }
+  const notes = (await db.query('SELECT count(*)::int AS total FROM "Note" WHERE "requestId" = ANY($1::int[])', [rows.map((row) => row.id)])).rows[0].total;
+  assert.ok(notes > 0);
+  await db.query('UPDATE "ReturnRequest" SET "customerName" = $1 WHERE id = $2', ['Preserved edit', rows[0].id]);
+  assert.deepEqual(await seedRequests(namespace), { inserted: 0, skipped: 35 });
+  assert.equal((await db.query('SELECT "customerName" FROM "ReturnRequest" WHERE id = $1', [rows[0].id])).rows[0].customerName, 'Preserved edit');
 });

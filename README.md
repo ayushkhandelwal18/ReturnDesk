@@ -1,10 +1,10 @@
 # ReturnDesk
 
-Phases 1 and 2 implement the PostgreSQL schema and backend APIs. The frontend remains the Next.js starter. Search, seed data and deployment remain for later phases.
+Phases 1–3 implement the PostgreSQL schema, backend APIs, database-backed listing and demo seed data. The frontend remains the Next.js starter; UI and deployment are later phases.
 
 ## Database setup
 
-Run `npm ci` and set `DIRECT_URL` in `.env` to your Neon PostgreSQL connection string. Never commit credentials. The existing `prisma7.config.ts` remains unchanged.
+Use Node.js 24 LTS (`node --version`), run `npm ci` and set `DIRECT_URL` in `.env` to your Neon PostgreSQL connection string. Node's native TypeScript stripping loads the generated Prisma Client; all handwritten application and seed code is JavaScript. Never commit credentials. The existing `prisma7.config.ts` remains unchanged.
 
 ```sh
 npx prisma validate --config prisma7.config.ts
@@ -35,6 +35,7 @@ All paths start with `/api/requests`. IDs in URLs are numeric database IDs. Resp
 | Method | Path | Input / behavior |
 | --- | --- | --- |
 | POST | `/api/requests` | Customer/item details; creates an Open request with generated reference (201). |
+| GET | `/api/requests` | Search, filter, sort and page requests; returns items and pagination metadata (200). |
 | GET | `/api/requests/:id` | Request with all notes ordered by creation time then ID (200). |
 | PATCH | `/api/requests/:id` | Nonempty subset of customerName, email, phone, orderId, itemId, itemName, quantity, reason (200). |
 | PATCH | `/api/requests/:id/status` | `status`, plus `resolution` and optional `refundAmount` only for approval (200). |
@@ -69,8 +70,38 @@ Start the local test server in one terminal:
 npm run dev -- --hostname 127.0.0.1 --port 3100
 ```
 
-Then run `npm run test:api`. Set `TEST_BASE_URL` to test a different local port. Use a development database with the migration applied. Tests exercise real HTTP handlers and PostgreSQL, including all 25 status pairs, resolution validation, duplicates, locked edits, deletion, final-state notes, errors and concurrent mutations. Fixtures are uniquely marked and removed after the run; reference sequence gaps remain. An interrupted run may leave marked fixtures. No seed data is created.
+Then run `npm run test:api`. Set `TEST_BASE_URL` to test a different local port. Use a development database with the migration applied. Tests exercise real HTTP handlers and PostgreSQL, including all 25 status pairs, resolution validation, duplicates, locked edits, deletion, final-state notes, errors, concurrent mutations, listing combinations and seed coverage/idempotency. Fixtures, including isolated seed records, are uniquely marked and removed after the run; reference sequence gaps remain. An interrupted run may leave marked fixtures.
+
+Phase 3 verification: all 15 tests passed (0 failed), and the original `prisma/verify.js` database checks passed. `npm run lint` passed with 10 unused-disable warnings in generated Prisma files. The demo seed inserted 35 records; a second run inserted 0 and skipped 35.
+
+## Listing (Phase 3)
+
+Example: `/api/requests?search=RD-DEMO&status=OPEN&reason=DAMAGED&sortBy=createdAt&sortOrder=desc&page=1&limit=20`.
+
+| Parameter | Default | Supported values |
+| --- | --- | --- |
+| search | empty | Case-insensitive literal substring of customer name, order ID or reference; max 200 characters. |
+| status | none | One of the five status enum values. |
+| reason | none | One of the five reason enum values. |
+| sortBy | createdAt | createdAt, updatedAt, customerName, orderId, reference, quantity. |
+| sortOrder | desc | asc (including oldest first), desc (including newest first). |
+| page | 1 | Positive integer, maximum 1,000,000. |
+| limit | 20 | Positive integer, maximum 100. |
+
+Unknown, repeated and invalid parameters return the usual 422 validation error. Whitespace-only search means no search. Soft-deleted rows are excluded. The response is `{ "data": { "items": [], "total": 0, "page": 1, "limit": 20, "totalPages": 0 } }`. Out-of-range pages return an empty items array without clamping the page number.
+
+Prisma sends search (`ILIKE`), filters, ordering, offset/limit and count to PostgreSQL. Every sort adds ID in the same direction as a tie-breaker. A repeatable-read transaction gives the page and count the same database snapshot. Separate page requests can still reflect intervening inserts or deletes; no historical snapshot is promised. Listing omits notes; the single-request endpoint returns them.
+
+## Demo seed
+
+After applying migrations and generating Prisma Client, run `npm run db:seed`. It inserts 35 requests across all five statuses, all five reasons and all three resolution types, with realistic customers/items and notes on some records. Refunds have positive exact amounts.
+
+The seed is transactional and uses reserved order IDs `RD-DEMO-001` through `RD-DEMO-035`. Existing matching orders are skipped, including edited or soft-deleted records; nothing is reset, overwritten or deleted. Run it sequentially. Do not use this reserved prefix for real orders. Re-running preserves existing records and adds only missing demo orders. The seed can be used on a clean migrated database without any other data.
+
+## Production build
+
+Run `npm run build`. The layout now uses system sans/monospace stacks, avoiding build-time Google Fonts downloads. Tailwind and its existing Turbopack loader are retained; no styling pipeline or dependency has been removed. The existing stylesheet and utilities compile successfully with Tailwind's compiler directly. In this Windows execution environment, Turbopack's generated CSS-loader worker exits with code 0 before its local connection is established. This reproduces with elevated execution too; the production build remains blocked by that worker failure. API routes run successfully in development. No successful production build is claimed.
 
 ## Remaining work
 
-Server-side search/filter/sort/pagination, UI, the 30-request seed script and deployment are not implemented. Record actual time spent and deployment details before submission.
+The frontend and deployment are not implemented. Resolve/verify the production build on the deployment environment before shipping. Record actual time spent and deployment details before submission.
