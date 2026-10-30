@@ -91,14 +91,14 @@ Endpoints are rooted at `/api/requests`. The `:id` parameter is a positive integ
 
 ```json
 {
-  "customerName": "Alex Smith",
-  "email": "alex@example.com",
-  "phone": null,
-  "orderId": "ORDER-100",
-  "itemId": "ITEM-10",
-  "itemName": "Cotton shirt",
-  "quantity": 1,
-  "reason": "SIZE_ISSUE"
+  "customerName": "Alex Smith",
+  "email": "alex@example.com",
+  "phone": null,
+  "orderId": "ORDER-100",
+  "itemId": "ITEM-10",
+  "itemName": "Cotton shirt",
+  "quantity": 1,
+  "reason": "SIZE_ISSUE"
 }
 ```
 
@@ -118,9 +118,9 @@ Begin review with `{ "status": "IN_REVIEW" }`. Approval example:
 
 ```json
 {
-  "status": "APPROVED",
-  "resolution": "REFUND",
-  "refundAmount": "25.50"
+  "status": "APPROVED",
+  "resolution": "REFUND",
+  "refundAmount": "25.50"
 }
 ```
 
@@ -144,13 +144,13 @@ Unknown, repeated or invalid query parameters return 422. Whitespace-only search
 
 ```json
 {
-  "data": {
-    "items": [],
-    "total": 0,
-    "page": 1,
-    "limit": 20,
-    "totalPages": 0
-  }
+  "data": {
+    "items": [],
+    "total": 0,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 0
+  }
 }
 ```
 
@@ -162,10 +162,10 @@ Successful responses use `{ "data": ... }`. Request objects contain the fields d
 
 ```json
 {
-  "error": {
-    "code": "INVALID_TRANSITION",
-    "message": "Cannot move from OPEN to COMPLETED."
-  }
+  "error": {
+    "code": "INVALID_TRANSITION",
+    "message": "Cannot move from OPEN to COMPLETED."
+  }
 }
 ```
 
@@ -287,6 +287,18 @@ node prisma/verify.js
 - Removed requests are no longer live, so a fresh request may use their order/item pair.
 - Dates are shown in IST. Notes with equal timestamps are ordered by ID.
 - Numbered pages may reflect intervening changes between separate HTTP requests; stable ordering does not freeze the entire dataset across navigation.
+
+## Development Time & Approach
+
+Approximate total development time: **5–6 hours**.
+
+I spent approximately 60–100 minutes understanding the assignment, selecting the technology stack, planning the PostgreSQL schema, identifying the five business rules, and deciding the application structure and implementation approach.
+
+After setting up Next.js, Prisma ORM and Neon PostgreSQL, I created the schema, migrations and seed data. I used OpenAI Codex as an AI-assisted development tool, providing task-specific prompts and working incrementally on the backend APIs, business rules, frontend components and integration.
+
+I reviewed the generated implementation, checked how the code worked, and manually tested request creation, valid and invalid status transitions, approval resolutions, duplicate prevention, editing restrictions, notes, soft deletion, and search, filtering and pagination. Debugging, validation, automated tests and production build checks informed the necessary corrections and refinements.
+
+I deployed the application with Vercel and Neon PostgreSQL, verified the live application, and completed the final identifier-format and documentation improvements.
 
 ## Known Limitations
 
