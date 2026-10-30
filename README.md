@@ -291,8 +291,7 @@ node prisma/verify.js
 ## Known Limitations
 
 - There is no authentication or agent-account system; this is a support-desk demo within the assignment's scope.
-- Order and item IDs are entered by an agent; the app does not validate them against an external store catalog.
-- Refund, replacement, and store-credit resolutions are recorded in ReturnDesk; there is no payment processor or fulfillment integration.
+
 
 ## Deployment
 
@@ -304,6 +303,4 @@ Database migrations and demo seeding are separate operations, not part of normal
 
 **Source code:** https://github.com/ayushkhandelwal18/ReturnDesk
 
-## Development Time
 
-Approximate time spent: **[Enter actual hours before submitting]**.
