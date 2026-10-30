@@ -2,15 +2,15 @@
 
 ## Project Overview
 
-ReturnDesk is a returns management workspace developed for an SDE Intern take-home assignment. Support agents can raise a return against an order, review the customer and item details, decide on a refund, replacement or store credit, and keep a permanent note history until the case is closed.
+ReturnDesk is a returns management system that allows support agents to raise return requests against orders, review customer and item details, process refunds, replacements or store credits, and maintain a permanent history of notes throughout the request lifecycle until the case is closed.
 
 The application uses PostgreSQL for persistence. Its API enforces the return lifecycle and editing/removal rules independently of the interface.
 
 ### Live Application
 
-**Not deployed yet — replace this placeholder with the public Vercel URL before submission.**
+**Live Demo:** [ReturnDesk](https://returndesk-bay.vercel.app/)
 
-Repository: [ayushkhandelwal18/ReturnDesk](https://github.com/ayushkhandelwal18/ReturnDesk)
+**Repository:** [ayushkhandelwal18/ReturnDesk](https://github.com/ayushkhandelwal18/ReturnDesk)
 
 ## Tech Stack
 
@@ -24,8 +24,6 @@ Repository: [ayushkhandelwal18/ReturnDesk](https://github.com/ayushkhandelwal18/
 | Validation | Zod |
 | Tests | Node.js built-in test runner, HTTP integration tests |
 | Production bundler | Webpack, bundled with Next.js |
-
-All handwritten application code is JavaScript. Prisma generates its own TypeScript client; `prisma7.config.ts` is the existing CLI configuration. Node.js 24 LTS is used for local scripts and verification.
 
 ## Features
 
@@ -44,9 +42,13 @@ All handwritten application code is JavaScript. Prisma generates its own TypeScr
 All five rules are enforced by the server. Buttons reflect the current state but are not the enforcement boundary.
 
 1. **Fixed lifecycle.** Only Open → In Review, In Review → Approved, In Review → Rejected, and Approved → Completed are allowed. Rejected and Completed are terminal. Skipping, reversing or repeating a transition is refused.
+
 2. **Approval requires a resolution.** Approval must specify Refund, Replacement or Store Credit. Refund requires an amount greater than zero; other resolutions cannot record a refund amount. The amount supports at most two decimal places.
+
 3. **One live request per order/item.** A live request is an undeleted request that is Open, In Review or Approved. Another request for the same order and item is refused while one is live, including concurrent creates or edits. Rejected and Completed requests allow a new request.
+
 4. **Details lock after a decision.** Customer, contact, order, item, quantity and reason fields can be edited only while Open or In Review. Approved, Rejected and Completed requests are locked. Notes remain available in every status.
+
 5. **Removal retains the record.** Only Open or Rejected requests may be removed. Removal sets `deletedAt`; deleted records disappear from listing and cannot be fetched or mutated through normal APIs.
 
 Every mutation of an existing request takes a PostgreSQL row lock within a Prisma transaction before checking its current state. Competing edits, transitions, notes and removal therefore cannot bypass the rules by reading stale state. The partial unique index separately protects live order/item uniqueness.
@@ -89,14 +91,14 @@ Endpoints are rooted at `/api/requests`. The `:id` parameter is a positive integ
 
 ```json
 {
-  "customerName": "Alex Smith",
-  "email": "alex@example.com",
-  "phone": null,
-  "orderId": "ORDER-100",
-  "itemId": "ITEM-10",
-  "itemName": "Cotton shirt",
-  "quantity": 1,
-  "reason": "SIZE_ISSUE"
+  "customerName": "Alex Smith",
+  "email": "alex@example.com",
+  "phone": null,
+  "orderId": "ORDER-100",
+  "itemId": "ITEM-10",
+  "itemName": "Cotton shirt",
+  "quantity": 1,
+  "reason": "SIZE_ISSUE"
 }
 ```
 
@@ -116,9 +118,9 @@ Begin review with `{ "status": "IN_REVIEW" }`. Approval example:
 
 ```json
 {
-  "status": "APPROVED",
-  "resolution": "REFUND",
-  "refundAmount": "25.50"
+  "status": "APPROVED",
+  "resolution": "REFUND",
+  "refundAmount": "25.50"
 }
 ```
 
@@ -142,13 +144,13 @@ Unknown, repeated or invalid query parameters return 422. Whitespace-only search
 
 ```json
 {
-  "data": {
-    "items": [],
-    "total": 0,
-    "page": 1,
-    "limit": 20,
-    "totalPages": 0
-  }
+  "data": {
+    "items": [],
+    "total": 0,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 0
+  }
 }
 ```
 
@@ -160,10 +162,10 @@ Successful responses use `{ "data": ... }`. Request objects contain the fields d
 
 ```json
 {
-  "error": {
-    "code": "INVALID_TRANSITION",
-    "message": "Cannot move from OPEN to COMPLETED."
-  }
+  "error": {
+    "code": "INVALID_TRANSITION",
+    "message": "Cannot move from OPEN to COMPLETED."
+  }
 }
 ```
 
@@ -229,13 +231,10 @@ The build command is `next build --webpack`; the existing Tailwind loader also p
 
 ## Environment Variables
 
-Copy the safe placeholders in [.env.example](.env.example). Never commit credentials or prefix database URLs with `NEXT_PUBLIC_`.
-
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Pooled Neon connection for application queries and the seed script. Runtime access falls back to `DIRECT_URL` if absent, but configure both for deployment. |
 | `DIRECT_URL` | Direct PostgreSQL connection required by `prisma7.config.ts`, migrations, database checks and integration-test fixture setup. |
-| `TEST_BASE_URL` | Optional HTTP target for integration tests; defaults to `http://127.0.0.1:3100`. |
 
 Standalone Prisma, seed and test scripts load `.env` with dotenv; Next.js loads environment variables for its own runtime. Environment files, build output, dependencies and generated Prisma output are ignored. `.env.example` is intentionally included in the repository.
 
@@ -269,26 +268,7 @@ npx prisma validate --config prisma7.config.ts
 node prisma/verify.js
 ```
 
-The 15 integration tests cover all 25 status pairs, approval/refund validation, duplicate create/edit conflicts, concurrent decisions/removal, locked details, notes in final states, soft-deletion visibility, malformed/invalid input and response shapes. Listing tests cover customer/order/reference search, status/reason filters, supported sorts, stable pages and combined parameters. Seed tests verify all statuses/reasons/resolutions and preservation on rerun.
-
-Test records use unique prefixes and are cleaned up afterward; the database verification script rolls back its records. PostgreSQL sequences still advance, so gaps in references are expected. An interrupted integration-test run may leave its marked fixtures.
-
-### Latest Verification
-
-Verified locally after cleanup:
-
-| Check | Result |
-| --- | --- |
-| `npm ci` | Passed; lockfile unchanged; zero reported vulnerabilities. |
-| `npm run build` | Passed using Webpack; compiled Tailwind styles verified. |
-| `npm run test:api` | 15 passed, 0 failed, against the production server. |
-| `npm run lint` | Passed with 0 errors and 0 warnings; generated client files are excluded. |
-| Prisma validation and migration status | Schema valid; database up to date; migration files already tracked in Git. |
-| `node prisma/verify.js` | Passed database connection and constraint checks. |
-| `npm run db:seed` | Safe rerun: 0 inserted, 35 existing demo orders skipped. |
-| Repository checks | Credentials/build/generated outputs ignored; no configured credentials found in surviving tracked files. |
-
-Production dashboard, create/detail pages and listing API passed HTTP smoke checks. Manual browser verification covered the 375 px layout, form validation, create/edit, approval with a refund, completion, notes after completion and removal confirmation. GitHub's unauthenticated API confirmed public repository visibility. Vercel deployment has not been executed.
+**Last verified:** 15 automated tests passed, 0 failed; lint completed without errors or warnings, and the production Webpack build succeeded. Run these commands against your own development/test database.
 
 ## Technical Design Decisions
 
@@ -310,35 +290,20 @@ Production dashboard, create/detail pages and listing API passed HTTP smoke chec
 
 ## Known Limitations
 
-- A public deployment and its URL are not yet verified. The live link and actual development hours still need filling in before submission.
 - There is no authentication or agent-account system; this is a support-desk demo within the assignment's scope.
-- Backend rules have automated integration coverage; browser usability was checked manually, including 375 px layout, rather than through a committed browser-test suite.
+- Order and item IDs are entered by an agent; the app does not validate them against an external store catalog.
+- Refund, replacement, and store-credit resolutions are recorded in ReturnDesk; there is no payment processor or fulfillment integration.
 
 ## Deployment
 
-### Vercel and Neon
+The application is deployed on Vercel and uses a Neon PostgreSQL database. Set `DATABASE_URL` (pooled connection) and `DIRECT_URL` (direct connection) as Vercel environment variables, then deploy the `main` branch. The build command is `npm run build` (configured to use Webpack).
 
-1. Import the repository into Vercel using the **Next.js** framework preset and repository root. Select **Node.js 24.x** in project settings, as supported by [Vercel's Node.js runtime](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
-2. Add `DATABASE_URL` and `DIRECT_URL` in [Vercel environment settings](https://vercel.com/docs/environment-variables) for the intended environment. Use a pooled runtime URL and a direct CLI URL for the same Neon database. Preview environments should use a separate database/branch if production data must remain isolated.
-3. Use `npm ci` as the install command. Set the [Build Command](https://vercel.com/docs/builds/configure-a-build) to:
+Database migrations and demo seeding are separate operations, not part of normal application startup. For a fresh database, follow **Local Setup** before testing the deployed app.
 
-   ```sh
-   npx prisma generate --config prisma7.config.ts && npm run build
-   ```
+**Live application:** https://returndesk-bay.vercel.app/
 
-   Prisma Client is ignored by Git and must be regenerated during builds, including cached deployments; see the [Prisma 7 Next.js deployment guidance](https://www.prisma.io/docs/orm/v7/more/troubleshooting/nextjs). `npm run build` retains the verified Webpack production configuration. Keep Vercel's default Next.js output settings.
-4. Before triggering the deployment, apply migrations to the intended deployment database from a trusted terminal or deployment pipeline:
-
-   ```sh
-   npx prisma migrate deploy --config prisma7.config.ts
-   ```
-
-   Ensure that terminal/pipeline uses the deployment database's `DIRECT_URL`, not an unrelated local database. `migrate deploy` applies pending migrations and does not generate Prisma Client or seed data. Never use a database reset for deployment.
-5. Run `npm run db:seed` once with both database URLs set to the intended demo database, then verify the deployed dashboard and API. Do not expose test-runner settings or credentials in client code.
-6. Replace the Live Application placeholder above and add the deployed URL to the GitHub repository description. Confirm the repository is public before submitting both links.
-
-These deployment steps are documented but have not been executed by this repository cleanup.
+**Source code:** https://github.com/ayushkhandelwal18/ReturnDesk
 
 ## Development Time
 
-**Approximate actual hours spent: [fill in manually before submission].**
+Approximate time spent: **[Enter actual hours before submitting]**.
